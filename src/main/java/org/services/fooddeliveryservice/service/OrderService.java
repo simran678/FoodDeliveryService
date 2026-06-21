@@ -13,7 +13,10 @@ import org.services.fooddeliveryservice.domain.Restaurant;
 import org.services.fooddeliveryservice.dto.Requests.OrderLineRequest;
 import org.services.fooddeliveryservice.dto.Requests.PlaceOrderRequest;
 import org.services.fooddeliveryservice.dto.Responses.OrderResponse;
-import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.exception.InvalidRequestException;
+import org.services.fooddeliveryservice.exception.ResourceConflictException;
+import org.services.fooddeliveryservice.exception.ResourceNotFoundException;
+import org.services.fooddeliveryservice.exception.UnauthorizedResourceAccessException;
 import org.services.fooddeliveryservice.repository.DeliveryAssignmentRepository;
 import org.services.fooddeliveryservice.repository.DeliveryPartnerRepository;
 import org.services.fooddeliveryservice.repository.FoodOrderRepository;
@@ -46,21 +49,21 @@ public class OrderService {
     @Transactional
     public OrderResponse placeOrder(PlaceOrderRequest request, AppUser customer) {
         Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
-                .orElseThrow(() -> ApiException.notFound("Restaurant not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
         Map<Long, Integer> quantities = mergeQuantities(request.items());
         List<MenuItem> menuItems = menuItemRepository.findAllByIdForUpdate(quantities.keySet());
         if (menuItems.size() != quantities.size()) {
-            throw ApiException.notFound("Menu item not found");
+            throw new ResourceNotFoundException("Menu item not found");
         }
 
         FoodOrder order = new FoodOrder(customer, restaurant);
         for (MenuItem item : menuItems) {
             if (!item.isActive() || !item.getRestaurant().getId().equals(restaurant.getId())) {
-                throw ApiException.badRequest("Menu items must belong to the selected restaurant", "MENU_ITEM_RESTAURANT_MISMATCH");
+                throw new InvalidRequestException("Menu items must belong to the selected restaurant", "MENU_ITEM_RESTAURANT_MISMATCH");
             }
             int quantity = quantities.get(item.getId());
             if (item.getStock() < quantity) {
-                throw ApiException.badRequest("Insufficient stock", "INSUFFICIENT_STOCK");
+                throw new InvalidRequestException("Insufficient stock", "INSUFFICIENT_STOCK");
             }
             item.deduct(quantity);
             order.addItem(item, quantity);
@@ -75,14 +78,14 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderResponse customerOrder(Long orderId, AppUser customer) {
         return OrderResponse.from(orderRepository.findByIdAndCustomerId(orderId, customer.getId())
-                .orElseThrow(() -> ApiException.notFound("Order not found")));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found")));
     }
 
     @Transactional
     public OrderResponse ownerTransition(Long orderId, AppUser owner, OrderStatus next) {
         FoodOrder order = lockedOrder(orderId);
         if (!order.getRestaurant().getOwner().getId().equals(owner.getId())) {
-            throw ApiException.forbidden("Restaurant owner cannot update another restaurant's order");
+            throw new UnauthorizedResourceAccessException("Restaurant owner cannot update another restaurant's order");
         }
         order.transitionTo(next);
         notificationService.log(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
@@ -93,20 +96,20 @@ public class OrderService {
     public OrderResponse acceptDelivery(Long orderId, AppUser partnerUser) {
         FoodOrder order = lockedOrder(orderId);
         if (order.getStatus() != OrderStatus.PREPARING) {
-            throw ApiException.badRequest("Only preparing orders can be accepted for delivery", "INVALID_ORDER_STATUS");
+            throw new InvalidRequestException("Only preparing orders can be accepted for delivery", "INVALID_ORDER_STATUS");
         }
         if (deliveryAssignmentRepository.existsByOrderId(orderId)) {
-            throw ApiException.conflict("Order already assigned", "ORDER_ALREADY_ASSIGNED");
+            throw new ResourceConflictException("Order already assigned", "ORDER_ALREADY_ASSIGNED");
         }
         DeliveryPartner partner = deliveryPartnerRepository.findByUserId(partnerUser.getId())
-                .orElseThrow(() -> ApiException.notFound("Delivery partner not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery partner not found"));
         try {
             DeliveryAssignment assignment = deliveryAssignmentRepository.save(new DeliveryAssignment(order, partner));
             order.attachAssignment(assignment);
             notificationService.log(order.getCustomer(), "Delivery partner assigned for order " + order.getId());
             return OrderResponse.from(order);
         } catch (DataIntegrityViolationException exception) {
-            throw ApiException.conflict("Order already assigned", "ORDER_ALREADY_ASSIGNED");
+            throw new ResourceConflictException("Order already assigned", "ORDER_ALREADY_ASSIGNED");
         }
     }
 
@@ -114,9 +117,9 @@ public class OrderService {
     public OrderResponse partnerTransition(Long orderId, AppUser partnerUser, OrderStatus next) {
         FoodOrder order = lockedOrder(orderId);
         DeliveryAssignment assignment = deliveryAssignmentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> ApiException.conflict("Order is not assigned", "ORDER_NOT_ASSIGNED"));
+                .orElseThrow(() -> new ResourceConflictException("Order is not assigned", "ORDER_NOT_ASSIGNED"));
         if (!assignment.getDeliveryPartner().getUser().getId().equals(partnerUser.getId())) {
-            throw ApiException.forbidden("Delivery partner cannot update another partner's order");
+            throw new UnauthorizedResourceAccessException("Delivery partner cannot update another partner's order");
         }
         order.transitionTo(next);
         notificationService.log(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
@@ -124,7 +127,7 @@ public class OrderService {
     }
 
     private FoodOrder lockedOrder(Long orderId) {
-        return orderRepository.findByIdForUpdate(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
+        return orderRepository.findByIdForUpdate(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     }
 
     private Map<Long, Integer> mergeQuantities(List<OrderLineRequest> items) {

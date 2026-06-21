@@ -8,7 +8,8 @@ import org.services.fooddeliveryservice.dto.Requests.MenuItemRequest;
 import org.services.fooddeliveryservice.dto.Requests.MenuItemUpdateRequest;
 import org.services.fooddeliveryservice.dto.Responses.MenuItemResponse;
 import org.services.fooddeliveryservice.dto.Responses.RestaurantResponse;
-import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.exception.ResourceNotFoundException;
+import org.services.fooddeliveryservice.exception.UnauthorizedResourceAccessException;
 import org.services.fooddeliveryservice.repository.CityRepository;
 import org.services.fooddeliveryservice.repository.MenuItemRepository;
 import org.services.fooddeliveryservice.repository.RestaurantRepository;
@@ -30,7 +31,7 @@ public class RestaurantService {
     @Transactional(readOnly = true)
     public List<RestaurantResponse> listRestaurants(Long cityId) {
         if (cityId != null && !cityRepository.existsById(cityId)) {
-            throw ApiException.notFound("City not found");
+            throw new ResourceNotFoundException("City not found");
         }
         List<Restaurant> restaurants = cityId == null
                 ? restaurantRepository.findAll()
@@ -38,10 +39,9 @@ public class RestaurantService {
         return restaurants.stream().map(RestaurantResponse::from).toList();
     }
 
-    @Transactional(readOnly = true)
     public List<MenuItemResponse> listMenu(Long restaurantId) {
         if (!restaurantRepository.existsById(restaurantId)) {
-            throw ApiException.notFound("Restaurant not found");
+            throw new ResourceNotFoundException("Restaurant not found");
         }
         return menuItemRepository.findByRestaurantIdAndActiveTrue(restaurantId).stream().map(MenuItemResponse::from).toList();
     }
@@ -56,16 +56,16 @@ public class RestaurantService {
     public MenuItemResponse updateMenuItem(Long restaurantId, Long menuItemId, MenuItemUpdateRequest request, AppUser owner) {
         ownedRestaurant(restaurantId, owner);
         MenuItem item = menuItemRepository.findByIdAndRestaurantId(menuItemId, restaurantId)
-                .orElseThrow(() -> ApiException.notFound("Menu item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
         item.update(request.name(), request.price(), request.stock(), request.active());
         return MenuItemResponse.from(item);
     }
 
     private Restaurant ownedRestaurant(Long restaurantId, AppUser owner) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> ApiException.notFound("Restaurant not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
         if (!restaurant.getOwner().getId().equals(owner.getId())) {
-            throw ApiException.forbidden("Restaurant owner cannot modify another restaurant");
+            throw new UnauthorizedResourceAccessException("Restaurant owner cannot modify another restaurant");
         }
         return restaurant;
     }

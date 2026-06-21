@@ -10,7 +10,7 @@ import org.services.fooddeliveryservice.domain.City;
 import org.services.fooddeliveryservice.domain.MenuItem;
 import org.services.fooddeliveryservice.domain.Restaurant;
 import org.services.fooddeliveryservice.domain.UserRole;
-import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.exception.ApplicationException;
 import org.services.fooddeliveryservice.repository.AppUserRepository;
 import org.services.fooddeliveryservice.repository.CityRepository;
 import org.services.fooddeliveryservice.repository.DeliveryAssignmentRepository;
@@ -72,14 +72,14 @@ class RestaurantServiceIntegrationTest {
     @Test
     void listMenuRejectsMissingRestaurant() {
         assertThatThrownBy(() -> restaurantService.listMenu(9999L))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Restaurant not found");
     }
 
     @Test
     void listRestaurantsRejectsMissingCity() {
         assertThatThrownBy(() -> restaurantService.listRestaurants(9999L))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("City not found");
     }
 }

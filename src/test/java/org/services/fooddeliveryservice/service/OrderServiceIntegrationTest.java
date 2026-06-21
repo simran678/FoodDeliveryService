@@ -19,7 +19,7 @@ import org.services.fooddeliveryservice.dto.Requests.OrderLineRequest;
 import org.services.fooddeliveryservice.dto.Requests.PlaceOrderRequest;
 import org.services.fooddeliveryservice.dto.Requests.RatingReviewRequest;
 import org.services.fooddeliveryservice.dto.Responses.OrderResponse;
-import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.exception.ApplicationException;
 import org.services.fooddeliveryservice.repository.AppUserRepository;
 import org.services.fooddeliveryservice.repository.CityRepository;
 import org.services.fooddeliveryservice.repository.DeliveryAssignmentRepository;
@@ -111,7 +111,7 @@ class OrderServiceIntegrationTest {
     @Test
     void insufficientStockRejectsOrderAndDoesNotDeductStock() {
         assertThatThrownBy(() -> placeOrder(pizza.getId(), 2))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Insufficient stock");
 
         assertThat(menuItems.findById(pizza.getId()).orElseThrow().getStock()).isEqualTo(1);
@@ -123,7 +123,7 @@ class OrderServiceIntegrationTest {
         OrderResponse response = placeOrder(burger.getId(), 1);
 
         assertThatThrownBy(() -> orderService.partnerTransition(response.id(), partnerUser, OrderStatus.DELIVERED))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Order is not assigned");
     }
 
@@ -143,7 +143,7 @@ class OrderServiceIntegrationTest {
         OrderResponse assigned = orderService.acceptDelivery(orderId, partnerUser);
         assertThat(assigned.deliveryPartnerId()).isNotNull();
         assertThatThrownBy(() -> orderService.acceptDelivery(orderId, otherPartnerUser))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Order already assigned");
     }
 
@@ -152,7 +152,7 @@ class OrderServiceIntegrationTest {
         Long orderId = makePreparingOrder();
 
         assertThatThrownBy(() -> ratingReviewService.rate(orderId, new RatingReviewRequest(5, "Too soon"), customer))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Rating is allowed only after delivery");
 
         orderService.acceptDelivery(orderId, partnerUser);
@@ -160,7 +160,7 @@ class OrderServiceIntegrationTest {
         orderService.partnerTransition(orderId, partnerUser, OrderStatus.DELIVERED);
 
         assertThatThrownBy(() -> ratingReviewService.rate(orderId, new RatingReviewRequest(5, "Not mine"), otherCustomer))
-                .isInstanceOf(ApiException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Customer cannot rate");
         assertThat(ratingReviewService.rate(orderId, new RatingReviewRequest(5, "Great"), customer).id()).isNotNull();
     }

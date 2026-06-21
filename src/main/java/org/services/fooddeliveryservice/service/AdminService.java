@@ -11,7 +11,8 @@ import org.services.fooddeliveryservice.dto.Requests.UserRequest;
 import org.services.fooddeliveryservice.dto.Responses.IdResponse;
 import org.services.fooddeliveryservice.dto.Responses.RestaurantResponse;
 import org.services.fooddeliveryservice.dto.Responses.UserResponse;
-import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.exception.InvalidRequestException;
+import org.services.fooddeliveryservice.exception.ResourceNotFoundException;
 import org.services.fooddeliveryservice.repository.AppUserRepository;
 import org.services.fooddeliveryservice.repository.CityRepository;
 import org.services.fooddeliveryservice.repository.DeliveryPartnerRepository;
@@ -60,10 +61,10 @@ public class AdminService {
 
     @Transactional
     public RestaurantResponse createRestaurant(RestaurantRequest request) {
-        City city = cityRepository.findById(request.cityId()).orElseThrow(() -> ApiException.notFound("City not found"));
-        AppUser owner = userRepository.findById(request.ownerId()).orElseThrow(() -> ApiException.notFound("Owner not found"));
+        City city = cityRepository.findById(request.cityId()).orElseThrow(() -> new ResourceNotFoundException("City not found"));
+        AppUser owner = userRepository.findById(request.ownerId()).orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
         if (owner.getRole() != UserRole.RESTAURANT_OWNER) {
-            throw ApiException.badRequest("Owner must have RESTAURANT_OWNER role", "INVALID_OWNER_ROLE");
+            throw new InvalidRequestException("Owner must have RESTAURANT_OWNER role", "INVALID_OWNER_ROLE");
         }
         return RestaurantResponse.from(restaurantRepository.save(new Restaurant(request.name(), city, owner)));
     }

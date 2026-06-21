@@ -1,7 +1,7 @@
 package org.services.fooddeliveryservice.service;
 
 import org.services.fooddeliveryservice.domain.AppUser;
-import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.exception.UnauthorizedResourceAccessException;
 import org.services.fooddeliveryservice.repository.AppUserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,9 +18,9 @@ public class CurrentUserService {
     public AppUser currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw ApiException.forbidden("Authentication required");
+            throw new UnauthorizedResourceAccessException("Authentication required");
         }
         return userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> ApiException.forbidden("Authenticated user is not registered"));
+                .orElseThrow(() -> new UnauthorizedResourceAccessException("Authenticated user is not registered"));
     }
 }
