@@ -1,5 +1,6 @@
 package org.services.fooddeliveryservice.service;
 
+import java.util.List;
 import org.services.fooddeliveryservice.domain.AppUser;
 import org.services.fooddeliveryservice.domain.City;
 import org.services.fooddeliveryservice.domain.DeliveryPartner;
@@ -8,6 +9,7 @@ import org.services.fooddeliveryservice.domain.UserRole;
 import org.services.fooddeliveryservice.dto.Requests.CityRequest;
 import org.services.fooddeliveryservice.dto.Requests.RestaurantRequest;
 import org.services.fooddeliveryservice.dto.Requests.UserRequest;
+import org.services.fooddeliveryservice.dto.Responses.DeliveryPartnerResponse;
 import org.services.fooddeliveryservice.dto.Responses.IdResponse;
 import org.services.fooddeliveryservice.dto.Responses.RestaurantResponse;
 import org.services.fooddeliveryservice.dto.Responses.UserResponse;
@@ -57,6 +59,12 @@ public class AdminService {
                 passwordEncoder.encode(request.password()), UserRole.DELIVERY_PARTNER));
         deliveryPartnerRepository.save(new DeliveryPartner(user));
         return new UserResponse(user.getId(), user.getName(), user.getUsername(), user.getRole().name());
+    }
+
+    public List<DeliveryPartnerResponse> availableDeliveryPartners() {
+        return deliveryPartnerRepository.findByAvailableTrue().stream()
+                .map(DeliveryPartnerResponse::from)
+                .toList();
     }
 
     @Transactional

@@ -98,6 +98,8 @@ POST /api/admin/cities
 POST /api/admin/restaurant-owners
 POST /api/admin/restaurants
 POST /api/admin/delivery-partners
+GET  /api/admin/delivery-partners/available
+PATCH /api/admin/orders/{orderId}/delivery-partners/{partnerId}/assign
 ```
 
 Restaurant and menu:

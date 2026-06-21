@@ -102,14 +102,21 @@ public class OrderService {
         }
         DeliveryPartner partner = deliveryPartnerRepository.findByUserId(partnerUser.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery partner not found"));
-        try {
-            DeliveryAssignment assignment = deliveryAssignmentRepository.save(new DeliveryAssignment(order, partner));
-            order.attachAssignment(assignment);
-            notificationService.log(order.getCustomer(), "Delivery partner assigned for order " + order.getId());
-            return OrderResponse.from(order);
-        } catch (DataIntegrityViolationException exception) {
+        return assignPartner(order, partner);
+    }
+
+    @Transactional
+    public OrderResponse assignDeliveryPartner(Long orderId, Long partnerId) {
+        FoodOrder order = lockedOrder(orderId);
+        if (order.getStatus() != OrderStatus.PREPARING) {
+            throw new InvalidRequestException("Only preparing orders can be assigned for delivery", "INVALID_ORDER_STATUS");
+        }
+        if (deliveryAssignmentRepository.existsByOrderId(orderId)) {
             throw new ResourceConflictException("Order already assigned", "ORDER_ALREADY_ASSIGNED");
         }
+        DeliveryPartner partner = deliveryPartnerRepository.findById(partnerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery partner not found"));
+        return assignPartner(order, partner);
     }
 
     @Transactional
@@ -121,6 +128,9 @@ public class OrderService {
             throw new UnauthorizedResourceAccessException("Delivery partner cannot update another partner's order");
         }
         order.transitionTo(next);
+        if (next == OrderStatus.DELIVERED) {
+            assignment.getDeliveryPartner().markAvailable();
+        }
         notificationService.log(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
         return OrderResponse.from(order);
     }
@@ -135,5 +145,20 @@ public class OrderService {
             quantities.merge(item.menuItemId(), item.quantity(), Integer::sum);
         }
         return quantities;
+    }
+
+    private OrderResponse assignPartner(FoodOrder order, DeliveryPartner partner) {
+        if (!partner.isAvailable()) {
+            throw new ResourceConflictException("Delivery partner is not available", "DELIVERY_PARTNER_NOT_AVAILABLE");
+        }
+        try {
+            DeliveryAssignment assignment = deliveryAssignmentRepository.save(new DeliveryAssignment(order, partner));
+            partner.markUnavailable();
+            order.attachAssignment(assignment);
+            notificationService.log(order.getCustomer(), "Delivery partner assigned for order " + order.getId());
+            return OrderResponse.from(order);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResourceConflictException("Order already assigned", "ORDER_ALREADY_ASSIGNED");
+        }
     }
 }

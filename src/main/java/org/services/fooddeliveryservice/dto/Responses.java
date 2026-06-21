@@ -37,6 +37,17 @@ public final class Responses {
         }
     }
 
+    public record DeliveryPartnerResponse(Long id, Long userId, String name, String username, boolean available) {
+        public static DeliveryPartnerResponse from(org.services.fooddeliveryservice.domain.DeliveryPartner partner) {
+            return new DeliveryPartnerResponse(
+                    partner.getId(),
+                    partner.getUser().getId(),
+                    partner.getUser().getName(),
+                    partner.getUser().getUsername(),
+                    partner.isAvailable());
+        }
+    }
+
     public record OrderItemResponse(Long menuItemId, String name, int quantity, BigDecimal unitPrice) {
         public static OrderItemResponse from(OrderItem item) {
             return new OrderItemResponse(item.getMenuItem().getId(), item.getItemName(), item.getQuantity(), item.getUnitPrice());

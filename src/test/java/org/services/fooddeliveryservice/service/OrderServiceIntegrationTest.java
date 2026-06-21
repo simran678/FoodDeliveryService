@@ -40,6 +40,8 @@ class OrderServiceIntegrationTest {
     @Autowired
     OrderService orderService;
     @Autowired
+    AdminService adminService;
+    @Autowired
     RatingReviewService ratingReviewService;
     @Autowired
     AppUserRepository users;
@@ -145,6 +147,26 @@ class OrderServiceIntegrationTest {
         assertThatThrownBy(() -> orderService.acceptDelivery(orderId, otherPartnerUser))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Order already assigned");
+    }
+
+    @Test
+    void adminCanAssignSpecificAvailableDeliveryPartner() {
+        Long orderId = makePreparingOrder();
+        Long partnerId = deliveryPartners.findByUserId(otherPartnerUser.getId()).orElseThrow().getId();
+
+        OrderResponse assigned = orderService.assignDeliveryPartner(orderId, partnerId);
+
+        assertThat(assigned.deliveryPartnerId()).isEqualTo(partnerId);
+        assertThat(adminService.availableDeliveryPartners())
+                .extracting("id")
+                .doesNotContain(partnerId);
+
+        orderService.partnerTransition(orderId, otherPartnerUser, OrderStatus.OUT_FOR_DELIVERY);
+        orderService.partnerTransition(orderId, otherPartnerUser, OrderStatus.DELIVERED);
+
+        assertThat(adminService.availableDeliveryPartners())
+                .extracting("id")
+                .contains(partnerId);
     }
 
     @Test
