@@ -21,8 +21,6 @@ import org.services.fooddeliveryservice.repository.MenuItemRepository;
 import org.services.fooddeliveryservice.repository.RestaurantRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -69,8 +67,8 @@ public class OrderService {
         }
         order.attachPayment(request.paymentStatus());
         FoodOrder saved = orderRepository.save(order);
-        notifyAfterCommit(restaurant.getOwner(), "New order placed: " + saved.getId());
-        notifyAfterCommit(customer, "Order placed: " + saved.getId());
+        notificationService.log(restaurant.getOwner(), "New order placed: " + saved.getId());
+        notificationService.log(customer, "Order placed: " + saved.getId());
         return OrderResponse.from(saved);
     }
 
@@ -87,7 +85,7 @@ public class OrderService {
             throw ApiException.forbidden("Restaurant owner cannot update another restaurant's order");
         }
         order.transitionTo(next);
-        notifyAfterCommit(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
+        notificationService.log(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
         return OrderResponse.from(order);
     }
 
@@ -105,7 +103,7 @@ public class OrderService {
         try {
             DeliveryAssignment assignment = deliveryAssignmentRepository.save(new DeliveryAssignment(order, partner));
             order.attachAssignment(assignment);
-            notifyAfterCommit(order.getCustomer(), "Delivery partner assigned for order " + order.getId());
+            notificationService.log(order.getCustomer(), "Delivery partner assigned for order " + order.getId());
             return OrderResponse.from(order);
         } catch (DataIntegrityViolationException exception) {
             throw ApiException.conflict("Order already assigned", "ORDER_ALREADY_ASSIGNED");
@@ -121,7 +119,7 @@ public class OrderService {
             throw ApiException.forbidden("Delivery partner cannot update another partner's order");
         }
         order.transitionTo(next);
-        notifyAfterCommit(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
+        notificationService.log(order.getCustomer(), "Order " + order.getId() + " moved to " + next);
         return OrderResponse.from(order);
     }
 
@@ -135,18 +133,5 @@ public class OrderService {
             quantities.merge(item.menuItemId(), item.quantity(), Integer::sum);
         }
         return quantities;
-    }
-
-    private void notifyAfterCommit(AppUser recipient, String message) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            notificationService.log(recipient, message);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                notificationService.log(recipient, message);
-            }
-        });
     }
 }
