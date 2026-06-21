@@ -75,7 +75,6 @@ public class OrderService {
         return OrderResponse.from(saved);
     }
 
-    @Transactional(readOnly = true)
     public OrderResponse customerOrder(Long orderId, AppUser customer) {
         return OrderResponse.from(orderRepository.findByIdAndCustomerId(orderId, customer.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found")));
