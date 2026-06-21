@@ -9,6 +9,7 @@ import org.services.fooddeliveryservice.dto.Requests.MenuItemUpdateRequest;
 import org.services.fooddeliveryservice.dto.Responses.MenuItemResponse;
 import org.services.fooddeliveryservice.dto.Responses.RestaurantResponse;
 import org.services.fooddeliveryservice.exception.ApiException;
+import org.services.fooddeliveryservice.repository.CityRepository;
 import org.services.fooddeliveryservice.repository.MenuItemRepository;
 import org.services.fooddeliveryservice.repository.RestaurantRepository;
 import org.springframework.stereotype.Service;
@@ -16,22 +17,32 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RestaurantService {
+    private final CityRepository cityRepository;
     private final RestaurantRepository restaurantRepository;
     private final MenuItemRepository menuItemRepository;
 
-    public RestaurantService(RestaurantRepository restaurantRepository, MenuItemRepository menuItemRepository) {
+    public RestaurantService(CityRepository cityRepository, RestaurantRepository restaurantRepository, MenuItemRepository menuItemRepository) {
+        this.cityRepository = cityRepository;
         this.restaurantRepository = restaurantRepository;
         this.menuItemRepository = menuItemRepository;
     }
 
     @Transactional(readOnly = true)
     public List<RestaurantResponse> listRestaurants(Long cityId) {
-        List<Restaurant> restaurants = cityId == null ? restaurantRepository.findAll() : restaurantRepository.findByCityId(cityId);
+        if (cityId != null && !cityRepository.existsById(cityId)) {
+            throw ApiException.notFound("City not found");
+        }
+        List<Restaurant> restaurants = cityId == null
+                ? restaurantRepository.findAll()
+                : restaurantRepository.findByCityId(cityId);
         return restaurants.stream().map(RestaurantResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public List<MenuItemResponse> listMenu(Long restaurantId) {
+        if (!restaurantRepository.existsById(restaurantId)) {
+            throw ApiException.notFound("Restaurant not found");
+        }
         return menuItemRepository.findByRestaurantIdAndActiveTrue(restaurantId).stream().map(MenuItemResponse::from).toList();
     }
 
